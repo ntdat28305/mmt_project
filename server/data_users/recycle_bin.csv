@@ -1,0 +1,6 @@
+accounts,id1,account and name_file and upload_date (1),id2,account and name_file and upload_date (2)
+user1,5713,user2 - file2.txt - 20/7/2024
+user2,7537,user2 - file2.txt - 21/7/2024,5714,user3 - file3.txt - 21/7/2024
+user3,7538,user3 - file3.txt - 22/7/2024
+user4,7539,user4 - file4.txt - 23/7/2024,5716,user5 - file5.txt - 23/7/2024
+user5,7540,user5 - file5.txt - 24/7/2024,5717,user6 - file2.txt - 24/7/2024
