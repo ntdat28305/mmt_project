@@ -6,16 +6,18 @@ from tkinterdnd2 import DND_FILES, TkinterDnD
 from tkcalendar import Calendar
 from tkinter import ttk
 from PIL import ImageTk, Image
+import threading
 import socket
 import sys
 import time
 import os
 
-SERVER_HOST = "192.168.1.220"
+SERVER_HOST = "192.168.1.26"
 SERVER_PORT = 5001
 BUFFER_SIZE = 4096
 SEPARATOR = "<SEPARATOR>"
 PATH = "PATH"
+DOWNLOAD_FOLDER = "uploads"
 
 customtkinter.set_appearance_mode("System")  # Modes: "System" (standard), "Dark", "Light"
 customtkinter.set_default_color_theme("blue")  # Themes: "blue" (standard), "green", "dark-blue"
@@ -50,6 +52,25 @@ def take_signal(signal):
     client_socket.close()
     
     return data
+
+# handle signal to server function
+def handle_client(client_socket):
+    try:
+        received = client_socket.recv(BUFFER_SIZE).decode()
+        filename, filesize = received.split(SEPARATOR)
+        filename = os.path.basename(filename)
+        filesize = int(filesize)
+        
+        filepath = os.path.join(DOWNLOAD_FOLDER, filename)
+        with open(filepath, "wb") as f:
+            while True:
+                bytes_read = client_socket.recv(BUFFER_SIZE)
+                if not bytes_read:    
+                    break
+                f.write(bytes_read)
+        print(f"File {filename} received successfully")
+    finally:
+        client_socket.close()
 
 # read from server message to dictionary function
 def import_data_from_server(key_from_server, value_from_server):
@@ -365,15 +386,17 @@ class App(customtkinter.CTk):
             
             # message from server starred files
             message_from_server_sf = take_signal(self.current_user + "|sf")
-            
+                        
             # import starred files data
-            import_data_from_server(message_from_server_sf, self.starred_files)
+            if message_from_server_sf != "none":
+                import_data_from_server(message_from_server_sf, self.starred_files)
             
             # message from server deleted files
             message_from_server_df = take_signal(self.current_user + "|rb")
             
             # import deleted files data
-            import_data_from_server(message_from_server_df, self.deleted_files)
+            if message_from_server_df != "none":
+                import_data_from_server(message_from_server_df, self.deleted_files)
         else:
             messagebox.showerror("Login Failed", "Invalid username or password.")
 
@@ -502,7 +525,7 @@ class App(customtkinter.CTk):
             return
                 
         try:
-            client_socket.send(f"{file_path}{SEPARATOR}{filesize}|ul".encode())
+            client_socket.send(f"{file_path}{SEPARATOR}{filesize}".encode())
         except ConnectionResetError:
             self.log_activity("Connection to server was reset. Make sure the server is running.")
             return
@@ -726,47 +749,26 @@ class App(customtkinter.CTk):
     def download_file(self, checkboxes, window):
         checked_items = [cb.cget("text") for cb in checkboxes if cb.get()]
         if checked_items:
-            self.log_activity(f"All the following file have been downloaded: \n{'\n'.join(checked_items)}")
+            server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            server_socket.bind(("0.0.0.0", SERVER_PORT))
+            server_socket.listen(1)
             
             # download file from server
             for item in checked_items:
-                client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                try:
-                    client_socket.connect((SERVER_HOST, SERVER_PORT))
-                except ConnectionRefusedError:
-                    self.log_activity(f"Connection to server refused. Make sure the server is running.")
-                    return
-
-                signal = item + '.' + get_file_extension(item) + '|' + "dl"
+                # send signal to server
+                take_signal(item.split(" - ")[2])
+                client_socket, address = server_socket.accept()
+                    
+                # receive file
+                client_handler = threading.Thread(target=handle_client, args=(client_socket,))
+                client_handler.start()         
+                   
+                # close client socket
+                client_socket.close()    
                 
-                try:
-                    client_socket.sendall(signal.encode())
-                except ConnectionResetError:
-                    self.log_activity("Connection to server was reset. Make sure the server is running.")
-                    return
+                self.log_activity(f"File {item} downloaded successfully.")
                 
-                # receive the file from the server
-                response = client_socket.recv(BUFFER_SIZE).decode()
-                if response.startswith("ERROR"):
-                    self.log_activity(f"Error: {response}")
-                    client_socket.close()
-                    return
-
-                filename, filesize = response.split(SEPARATOR)
-                filename = os.path.basename(filename)
-                filesize = int(filesize)
-
-                with open("downloaded_" + filename, "wb") as f:
-                    total_bytes_received = 0
-                    while total_bytes_received < filesize:
-                        bytes_read = client_socket.recv(BUFFER_SIZE)
-                        if not bytes_read:
-                            break
-                        f.write(bytes_read)
-                        total_bytes_received += len(bytes_read)
-
-                client_socket.close()            
-            
+            server_socket.close()        
             tkinter.messagebox.showinfo("Download File", "All ticked file have been downloaded successfully.")
             window.destroy()
         else:
@@ -811,9 +813,10 @@ class App(customtkinter.CTk):
             self.log_activity(f"All the following file have been starred: \n{'\n'.join(checked_items)}")
             for item in checked_items:
                 id_item, info_item = sep_id_and_info(item)
-                self.starred_files[id_item] = info_item
-                # do on server
-                take_signal(self.current_user + '|' + item + "|sf")
+                if id_item not in self.starred_files:
+                    self.starred_files[id_item] = info_item
+                    # do on server
+                    take_signal(self.current_user + '|' + item + "|sf")
             tkinter.messagebox.showinfo("Starred File", "All ticked file have been starred successfully.")
             window.destroy()
         else:
