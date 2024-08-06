@@ -212,18 +212,34 @@ def handle_client(client_socket):
     finally:
         client_socket.close()
 
-# Send file to client
-def send_file(client_socket, file_path):
-    file_path = PATH + "mmt_project/server/data_files/all_file/" + file_path
+# Upload file to client
+def upload_to_client(client_host, file_path):
+    if not file_path:
+        raise ValueError("File path must not be null or empty")
+    
     filesize = os.path.getsize(file_path)
-    client_socket.send(f"{file_path}{SEPARATOR}{filesize}".encode())
-
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        client_socket.connect((client_host, SERVER_PORT))
+    except ConnectionRefusedError:
+        return
+            
+    try:
+        client_socket.send(f"{file_path}{SEPARATOR}{filesize}".encode())
+    except ConnectionResetError:
+        return
+    
     with open(file_path, "rb") as f:
         while True:
             bytes_read = f.read(BUFFER_SIZE)
             if not bytes_read:
                 break
-            client_socket.sendall(bytes_read)
+            try:
+                client_socket.sendall(bytes_read)
+            except ConnectionResetError:
+                return
+            
+    client_socket.close()
 
 def start_server():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -235,10 +251,12 @@ def start_server():
         client_socket, address = server_socket.accept()
         print(f"[+] {address} is connected.")
         
+        temp_client = client_socket
+        
         signal = client_socket.recv(1024).decode()
         print(f"Received signal: {signal}")
         
-        data = None
+        data = "None"
         if signal == "user": # Get all user login
             data = csv_to_string(file_path_users_login)
         elif signal == "asf": # Get all server files
@@ -246,9 +264,13 @@ def start_server():
         elif signal[-3:] == "|sf": # Get all starred files by user
             name_user = signal[:-3]
             data = extract_user_info(file_path_starred_files, name_user)
+            if data == "":
+                data = "None"
         elif signal[-3:] == "|rb": # Get all recycle bin by user
             name_user = signal[:-3]
             data = extract_user_info(file_path_recycle_bin, name_user)
+            if data == "":
+                data = "None"
         elif signal[-3:] == "|uu": # Add new user
             user_and_pass = signal[:-3]
             new_user = user_and_pass.split("|")[0]
@@ -303,12 +325,11 @@ def start_server():
             user = user_and_info.split("|")[0]
             password = user_and_info.split("|")[1]
             change_password(file_path_users_login, user, password)
-        elif signal[-3:] == "|dl": # Download file
-            file_name = signal[:-3]
-            send_file(client_socket, file_name)
         elif signal[-3:] == "|ul": # Upload file
-            client_handler = threading.Thread(target=handle_client, args=(client_socket,))
+            client_handler = threading.Thread(target=handle_client, args=(temp_client,))
             client_handler.start()
+        else:
+            upload_to_client(address, PATH + "mmt_project/server/data_files/all_file/" + signal)
             
         client_socket.sendall(data.encode())
 
