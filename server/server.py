@@ -13,10 +13,10 @@ UPLOAD_FOLDER = "uploads"
 PATH = "PATH"
 
 # All file path
-file_path_all_files = PATH + 'mmt_project/server/data_users/all_file.csv'
-file_path_recycle_bin = PATH + 'mmt_project/server/data_users/recycle_bin.csv'
-file_path_starred_files = PATH + 'mmt_project/server/data_users/starred_file.csv'
-file_path_users_login = PATH + 'mmt_project/server/data_users/users_login.csv'
+file_path_all_files = PATH + 'mmt_project-main/server/data_users/all_file.csv'
+file_path_recycle_bin = PATH + 'mmt_project-main/server/data_users/recycle_bin.csv'
+file_path_starred_files = PATH + 'mmt_project-main/server/data_users/starred_file.csv'
+file_path_users_login = PATH + 'mmt_project-main/server/data_users/users_login.csv'
 
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
@@ -287,7 +287,7 @@ def start_server():
             remove_id_from_starred(file_path_starred_files, id_to_remove)
             remove_row_by_id(file_path_all_files, id_to_remove)
             add_info_to_user(file_path_recycle_bin, name_user, id_to_remove, user_info)
-            move_file(f"{PATH}mmt_project/server/data_files/all_file/{id_to_remove}", PATH + "mmt_project/server/data_files/recycle_bin")
+            move_file(f"{PATH}mmt_project-main/server/data_files/all_file/{id_to_remove}", PATH + "mmt_project-main/server/data_files/recycle_bin")
         elif signal[-3:] == "|rs": # Restore file
             user_and_id = signal[:-3]
             user_info = user_and_id.split("|")[1]
@@ -296,7 +296,7 @@ def start_server():
             name_user = name_user[:-1]
             del_one_id_in_one_row(file_path_recycle_bin, name_user, id_to_restore)
             add_new_row(file_path_all_files, id_to_restore, user_info)
-            move_file(f"{PATH}mmt_project/server/data_files/recycle_bin/{id_to_restore}", PATH + "mmt_project/server/data_files/all_file")
+            move_file(f"{PATH}mmt_project-main/server/data_files/recycle_bin/{id_to_restore}", PATH + "mmt_project-main/server/data_files/all_file")
         elif signal[-3:] == "|df": # Delete file
             user_and_id = signal[:-3]
             user_info = user_and_id.split("|")[1]
@@ -304,7 +304,7 @@ def start_server():
             name_user = user_info.split("-")[0]
             name_user = name_user[:-1]
             del_one_id_in_one_row(file_path_recycle_bin, name_user, id_to_delete)
-            os.remove(f"{PATH}mmt_project/server/data_files/all_file/{id_to_delete}")
+            os.remove(f"{PATH}mmt_project-main/server/data_files/all_file/{id_to_delete}")
         elif signal[-3:] == "|sf": # Starred file
             user_and_info = signal[:-3]
             info = user_and_info.split("|")[1]
@@ -329,7 +329,7 @@ def start_server():
             client_handler = threading.Thread(target=handle_client, args=(temp_client,))
             client_handler.start()
         else:
-            upload_to_client(address, PATH + "mmt_project/server/data_files/all_file/" + signal)
+            upload_to_client(address, PATH + "mmt_project-main/server/data_files/all_file/" + signal)
             
         client_socket.sendall(data.encode())
 
