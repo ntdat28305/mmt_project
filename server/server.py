@@ -4,6 +4,7 @@ import threading
 import csv
 import shutil
 import datetime
+import re
 
 SERVER_HOST = "0.0.0.0"
 SERVER_PORT = 5001
@@ -194,9 +195,8 @@ def move_file(source_file, destination_folder):
     print(f"File '{source_file}' đã được chuyển đến '{destination_folder}'")
 
 # Handle client function
-def handle_client(client_socket):
+def handle_client(client_socket, received):
     try:
-        received = client_socket.recv(BUFFER_SIZE).decode()
         filename, filesize = received.split(SEPARATOR)
         filename = os.path.basename(filename)
         filesize = int(filesize)
@@ -250,10 +250,8 @@ def start_server():
     while True:
         client_socket, address = server_socket.accept()
         print(f"[+] {address} is connected.")
-        
-        temp_client = client_socket
-        
-        signal = client_socket.recv(1024).decode()
+
+        signal = client_socket.recv(4096).decode()
         print(f"Received signal: {signal}")
         
         data = "None"
@@ -325,11 +323,12 @@ def start_server():
             user = user_and_info.split("|")[0]
             password = user_and_info.split("|")[1]
             change_password(file_path_users_login, user, password)
-        elif signal[-3:] == "|ul": # Upload file
-            client_handler = threading.Thread(target=handle_client, args=(temp_client,))
+        elif signal[-3:] == "|dl": # Download
+            signal = signal[:-3]
+            upload_to_client(address[0], PATH + "mmt_project-main/server/data_files/all_file/" + signal)
+        else: # Upload
+            client_handler = threading.Thread(target=handle_client, args=(client_socket, signal))
             client_handler.start()
-        else:
-            upload_to_client(address, PATH + "mmt_project-main/server/data_files/all_file/" + signal)
             
         client_socket.sendall(data.encode())
 
